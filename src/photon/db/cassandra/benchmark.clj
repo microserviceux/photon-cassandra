@@ -69,7 +69,7 @@
 (defn -main [& args]
   (let [db (->DBCassandra)]
     (warmup! db)
-    (let [nums [1 5 10 50 100 500 1000 5000 10000 50000 100000 500000]
+    (let [nums (into [] (range 1 8))
           complexities [:simple :medium :complex]
           codecs [:stream :edn :json :smile]
           combs (combo/cartesian-product complexities codecs nums)
