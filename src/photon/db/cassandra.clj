@@ -5,11 +5,13 @@
             [photon.config :as conf]
             [clojure.set :refer [rename-keys]]
             [clojurewerkz.cassaforte.client :as cc]
+            [clojure.java.io :as io]
             [clojurewerkz.cassaforte.cql    :as cql]
             [dire.core :refer [with-handler!]])
   (:use clojurewerkz.cassaforte.query)
   (:import (java.nio.charset Charset CharsetEncoder CharsetDecoder)
            (java.nio CharBuffer Buffer ByteBuffer)
+           (java.util Arrays)
            (java.math BigInteger)))
 
 (def chunk-size 100)
@@ -88,6 +90,43 @@
   (.encode e (CharBuffer/wrap s)))
 
 (defn long-value [^BigInteger bi] (.longValue bi))
+
+(defn bos-flush [v i bb]
+  (let [new-bb (ByteBuffer/allocate @i)]
+    (dorun (map #(.put new-bb (first %) (second %) (nth % 2)) @v))
+    (swap! bb (fn [_] new-bb))))
+
+(defn bos-write [v i b off len]
+  (swap! v conj [(Arrays/copyOf b len) off len])
+  (swap! i + len))
+
+(defn byte-output-stream [v i bb]
+  (proxy [java.io.OutputStream] []
+    (flush [] (bos-flush v i bb))
+    (write [#^bytes b ^Integer off ^Integer len] (bos-write v i b off len))))
+
+(defn byte-input-stream [bb]
+  (.flip bb)
+  (proxy [java.io.InputStream] []
+    (available [] (.remaining bb))
+    (read
+      ([] (if (.hasRemaining bb) (.get bb) -1))
+      ([#^bytes b ^Integer off ^Integer len]
+       (let [c (min (.remaining bb) len)]
+         (if (= 0 c)
+           -1
+           (do (.get bb b off c) c)))))))
+
+(defn clj-encode-json-stream [item]
+  (let [bb (atom nil)
+        the-boss (byte-output-stream (atom []) (atom 0) bb)]
+    (json/generate-stream
+      item
+      (io/writer the-boss))
+    @bb))
+
+(defn clj-decode-json-stream [data]
+  (json/parse-stream (io/reader (byte-input-stream data)) true))
 
 (defn clj-encode-edn [item]
   (encode (encoder (Thread/currentThread))
