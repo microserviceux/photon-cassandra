@@ -96,7 +96,7 @@
     (dorun (map #(.put new-bb (first %) (second %) (nth % 2)) @v))
     (swap! bb (fn [_] new-bb))))
 
-(defn bos-write [v i b off len]
+(defn bos-write [v i #^bytes b off ^Integer len]
   (swap! v conj [(Arrays/copyOf b len) off len])
   (swap! i + len))
 
@@ -105,7 +105,7 @@
     (flush [] (bos-flush v i bb))
     (write [#^bytes b ^Integer off ^Integer len] (bos-write v i b off len))))
 
-(defn byte-input-stream [bb]
+(defn byte-input-stream [^ByteBuffer bb]
   (.flip bb)
   (proxy [java.io.InputStream] []
     (available [] (.remaining bb))
