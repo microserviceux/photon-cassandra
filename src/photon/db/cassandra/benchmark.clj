@@ -5,39 +5,40 @@
             [photon.db :refer :all]))
 
 (defn random-map [n]
-  (let [r (int (* (Math/random) n))]
-    (zipmap (take r (repeatedly #(.toString (java.util.UUID/randomUUID))))
-            (take r (repeatedly #(random-map (dec n)))))))
+  (zipmap (take n (repeatedly #(.toString (java.util.UUID/randomUUID))))
+          (take n (repeatedly #(random-map (dec n))))))
 
 (defn send-events! [db n type enc]
   (println "Generating payloads...")
-  (let [random-maps
-        (doall (take n (repeatedly #(random-map
-                                      ({:simple 0
-                                        :easy 2
-                                        :medium 4
-                                        :hard 6
-                                        :complex 8}
-                                       type)))))]
+  (let [rm (doall (take n
+                        (repeatedly #(random-map
+                                       ({:simple 0 :easy 1
+                                         :medium 2 :hard 4 :complex 6}
+                                        type)))))]
     (println "Starting writes")
     (dorun
-      (pmap #(let [m {:server-timestamp (System/currentTimeMillis)
-                      :order-id (System/nanoTime)
-                      :stream-name "test"
-                      :payload %}]
-               (binding [clj-encode (get {:json clj-encode-json
-                                          :edn clj-encode-edn
-                                          :stream clj-encode-json-stream
-                                          :smile clj-encode-smile}
-                                     enc)]
-                 (store db m)))
-            random-maps))))
+      (pmap (fn [r]
+              (let [m {:server-timestamp (System/currentTimeMillis)
+                       :order-id (System/nanoTime)
+                       :stream-name "test"
+                       :payload r}]
+                (binding [clj-encode (get {:json clj-encode-json
+                                           :edn clj-encode-edn
+                                           :edn-stream clj-encode-edn-stream
+                                           :nippy clj-encode-nippy
+                                           :stream clj-encode-json-stream
+                                           :smile clj-encode-smile}
+                                          enc)]
+                  (store db m))))
+            rm))))
 
 (defn read-all! [db enc]
   (println "Reading all...")
   (binding [clj-decode (get {:json clj-decode-json
+                             :nippy clj-decode-nippy
                              :stream clj-decode-json-stream
                              :edn clj-decode-edn
+                             :edn-stream clj-decode-edn-stream
                              :smile clj-decode-smile}
                                      enc)]
     (dorun (map identity (lazy-events db :__all__ 0)))))
@@ -46,11 +47,13 @@
   (println "Warming up JIT...")
   (delete-all! db)
   (send-events! db 10000 :simple :stream)
+  (send-events! db 10000 :simple :nippy)
   (send-events! db 10000 :simple :edn)
+  (send-events! db 10000 :simple :edn-stream)
   (send-events! db 10000 :simple :json)
   (send-events! db 10000 :simple :smile))
 
-(defn test-writes! [db type enc num]
+(defn test-writes! [db num type enc]
   (delete-all! db)
   (let [start (System/nanoTime)]
     (println "Testing...")
@@ -73,8 +76,8 @@
     (warmup! db)
     (let [nums [1 5 10 50 100 500 1000 5000 10000 50000 100000 500000]
           complexities [:simple :easy :medium :hard :complex]
-          codecs [:stream :edn :json :smile]
-          combs (combo/cartesian-product complexities codecs nums)
+          codecs [:nippy :stream :edn :json :smile :edn-stream]
+          combs (combo/cartesian-product nums complexities codecs)
           results (mapcat #(apply test-writes! db %) combs)]
       (spit "/tmp/results.benchmark" "" :append false)
       (dorun (map #(spit "/tmp/results.benchmark" (str (pr-str %) "\n")

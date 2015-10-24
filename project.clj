@@ -7,6 +7,7 @@
   :aot :all
   :main photon.db.cassandra.benchmark
   :aliases {"benchmark" ["run" "-m" "photon.db.cassandra.benchmark/-main"]}
+  :jvm-opts ["-Xmx4g"]
   #_#_:jvm-opts [#_"-Xmx4g"
              #_"-XX:+PrintGCDetails"
              "-agentpath:/Users/sergio/Downloads/YourKit_Java_Profiler_2015_build_15074.app/Contents/Resources/bin/mac/libyjpagent.jnilib"
@@ -27,6 +28,7 @@
                  [tranchis/cassaforte "2.1.0-beta3"]
                  [org.clojure/math.combinatorics "0.1.1"]
                  [cheshire "5.5.0"]
+                 [com.taoensso/nippy "2.10.0"]
                  [dire "0.5.3"]
                  [org.clojure/tools.logging "0.3.1"]])
 
