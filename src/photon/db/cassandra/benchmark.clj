@@ -14,8 +14,10 @@
   (let [random-maps
         (doall (take n (repeatedly #(random-map
                                       ({:simple 0
-                                        :medium 5
-                                        :complex 10}
+                                        :easy 2
+                                        :medium 4
+                                        :hard 6
+                                        :complex 8}
                                        type)))))]
     (println "Starting writes")
     (dorun
@@ -69,8 +71,8 @@
 (defn -main [& args]
   (let [db (->DBCassandra)]
     (warmup! db)
-    (let [nums (into [] (range 1 8))
-          complexities [:simple :medium :complex]
+    (let [nums [1 5 10 50 100 500 1000 5000 10000 50000 100000 500000]
+          complexities [:simple :easy :medium :hard :complex]
           codecs [:stream :edn :json :smile]
           combs (combo/cartesian-product complexities codecs nums)
           results (mapcat #(apply test-writes! db %) combs)]
