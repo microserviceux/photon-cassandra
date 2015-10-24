@@ -99,6 +99,7 @@
       (let [new-bb (ByteBuffer/allocateDirect @i)]
         (dorun (map #(.put new-bb (nth % 0) (nth % 1) (nth % 2))
                     (persistent! @v)))
+        (.flip new-bb)
         (reset! bb new-bb)))
     (write [#^bytes b ^Integer off ^Integer len]
       (let [ve @v]
@@ -106,7 +107,6 @@
       (swap! i + len))))
 
 (defn byte-input-stream [^ByteBuffer bb]
-  (.flip bb)
   (proxy [java.io.InputStream] []
     (available [] (.remaining bb))
     (read
