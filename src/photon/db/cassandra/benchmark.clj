@@ -10,18 +10,15 @@
 
 (defn send-events! [db n type enc]
   (println "Generating payloads...")
-  (let [rm (doall (take n
-                        (repeatedly #(random-map
-                                       ({:simple 0 :easy 1
-                                         :medium 2 :hard 4 :complex 6}
-                                        type)))))]
+  (let [rm (random-map ({:simple 0 :easy 1 :medium 2 :hard 4 :complex 6}
+              type))]
     (println "Starting writes")
     (dorun
-      (pmap (fn [r]
+      (pmap (fn [_]
               (let [m {:server-timestamp (System/currentTimeMillis)
                        :order-id (System/nanoTime)
                        :stream-name "test"
-                       :payload r}]
+                       :payload rm}]
                 (binding [clj-encode (get {:json clj-encode-json
                                            :edn clj-encode-edn
                                            :edn-stream clj-encode-edn-stream
@@ -30,7 +27,7 @@
                                            :smile clj-encode-smile}
                                           enc)]
                   (store db m))))
-            rm))))
+            (range n)))))
 
 (defn read-all! [db enc]
   (println "Reading all...")
