@@ -169,8 +169,8 @@
     (get-from-buffer data bb)
     (json/parse-smile bb true)))
 
-(def ^:dynamic clj-encode json/generate-string)
-(def ^:dynamic clj-decode json/parse-string)
+(def ^:dynamic clj-encode clj-encode-nippy)
+(def ^:dynamic clj-decode clj-decode-nippy)
 
 (defn clj->cassandra [cl]
   (let [rm (rename-keys cl {:stream-name :stream_name

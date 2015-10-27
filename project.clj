@@ -1,4 +1,4 @@
-(defproject tranchis/photon-cassandra "0.9.10"
+(defproject tranchis/photon-cassandra "0.9.11"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
@@ -28,7 +28,9 @@
                  [tranchis/cassaforte "2.1.0-beta3"]
                  [org.clojure/math.combinatorics "0.1.1"]
                  [cheshire "5.5.0"]
-                 [com.taoensso/nippy "2.10.0"]
+                 [org.clojure/tools.reader "0.10.0-alpha3"]
+                 [com.taoensso/nippy "2.10.0"
+                  :exclusions [org.clojure/tools.reader]]
                  [dire "0.5.3"]
                  [org.clojure/tools.logging "0.3.1"]])
 
