@@ -2,6 +2,7 @@
   (:gen-class)
   (:require [photon.db.cassandra :refer :all]
             [clojure.math.combinatorics :as combo]
+            [photon.db.cassandra.encoding :refer :all]
             [photon.db :refer :all]))
 
 (defn random-map [n]
