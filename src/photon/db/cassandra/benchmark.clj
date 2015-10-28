@@ -69,7 +69,7 @@
            {:mode :writes :type type :enc enc :num num :t t-writes}])))))
 
 (defn -main [& args]
-  (let [db (->DBCassandra)]
+  (let [db (->DBCassandra {:db.backend "cassandra"})]
     (warmup! db)
     (let [nums [1 5 10 50 100 500 1000 5000 10000 50000 100000 500000]
           complexities [:simple :easy :medium :hard :complex]
