@@ -2,7 +2,6 @@
   (:require [cheshire.core :as json]
             [clojure.tools.logging :as log]
             [photon.db :as db]
-            [photon.config :as conf]
             [clojure.set :refer [rename-keys]]
             [clojurewerkz.cassaforte.client :as cc]
             [clojure.java.io :as io]
@@ -40,9 +39,12 @@
 (def decoder (memoize m-decoder))
 
 (def cassandra-instances (ref {}))
-(def conn-string (get conf/config :cassandra.ip "127.0.0.1"))
-(def kspace (get conf/config :kspace "photon"))
-(def table (get conf/config :table "events"))
+(defn conn-string [conf]
+  (get conf :cassandra.ip "127.0.0.1"))
+(defn kspace [conf]
+  (get conf :kspace "photon"))
+(defn table [conf]
+  (get conf :table "events"))
 
 (def schema
   {:service_id       :varchar
@@ -70,15 +72,16 @@
   (cql/create-index conn table :service_id)
   (cql/create-index conn table :local_id))
 
-(defn connection [ip]
-  (let [ref-conn (get @cassandra-instances ip)]
+(defn connection [conf]
+  (let [ip (conn-string conf)
+        ref-conn (get @cassandra-instances ip)]
     (if (nil? ref-conn)
       (do
         (let [conn (cc/connect [ip])]
           (dosync (alter cassandra-instances assoc ip conn))
           (log/trace (pr-str @cassandra-instances))
-          (cql/use-keyspace conn kspace)
-          (init-table conn table)
+          (cql/use-keyspace conn (kspace conf))
+          (init-table conn (table conf))
           conn))
       ref-conn)))
 
@@ -213,7 +216,7 @@
             (lazy-seq (ordered-combination sort-fn new-seqs))))))
 
 (let [r
-      (defrecord DBCassandra []
+      (defrecord DBCassandra [conf]
         db/DB
         (db/driver-name [this] "cassandra")
         (db/fetch [this stream-name id]
@@ -221,39 +224,41 @@
           (first
             (map
               cassandra->clj
-              (let [conn (connection conn-string)]
-                (cql/select conn table (where [[= :stream_name stream-name]
-                                               [= :order_id (bigint id)]]))))))
+              (let [conn (connection conf)]
+                (cql/select conn (table conf)
+                            (where [[= :stream_name stream-name]
+                                    [= :order_id (bigint id)]]))))))
         (db/delete! [this id]
-          (let [conn (connection conn-string)]
-            (cql/delete conn table (where [[= :uuid id]]))))
+          (let [conn (connection conf)]
+            (cql/delete conn (table conf)
+                        (where [[= :uuid id]]))))
         (db/delete-all! [this]
-          (let [conn (connection conn-string)]
-            (cql/drop-table conn table)
-            (cql/drop-table conn (keyword (str (name table) "_times")))
-            (cql/drop-keyspace conn kspace)
+          (let [conn (connection conf)]
+            (cql/drop-table conn (table conf))
+            (cql/drop-table conn (keyword (str (name (table conf)) "_times")))
+            (cql/drop-keyspace conn (kspace conf))
             (cql/create-keyspace conn kspace
                                  (with {:replication
                                         {:class "SimpleStrategy"
                                          :replication_factor 1}}))
-            (init-table conn table)))
+            (init-table conn (table conf))))
         (db/put [this data]
           (db/store this data))
         (db/search [this id]
           (map
             cassandra->clj
-            (let [conn (connection conn-string)]
-              (cql/select conn table {:uuid id}))))
+            (let [conn (connection conf)]
+              (cql/select conn (table conf) {:uuid id}))))
         (db/store [this payload]
-          (let [conn (connection conn-string)]
-            (cql/insert conn table (clj->cassandra payload))
+          (let [conn (connection conf)]
+            (cql/insert conn (table conf) (clj->cassandra payload))
             (cql/insert
-              conn (keyword (str (name table) "_times"))
+              conn (keyword (str (name (table conf)) "_times"))
               {:server_timestamp (:server-timestamp payload)
                :stream_name (:stream-name payload)
                :order_id (:order-id payload)})))
         (db/distinct-values [this k]
-          (let [conn (connection conn-string)
+          (let [conn (connection conf)
                 ck (get {:stream-name :stream_name
                          :service-id :service_id
                          :order-id :order_id
@@ -262,7 +267,7 @@
                          :local-id :local_id
                          :schema :schema_url}
                         k k)]
-            (map :dv (cql/select conn table
+            (map :dv (cql/select conn (table conf)
                                  (columns (-> ck distinct* (as "dv")))))))
         (db/lazy-events [this stream-name date]
           (log/info "Retrieving events from" stream-name "from date" date)
@@ -271,8 +276,8 @@
             (let [sts (db/distinct-values this :stream-name)]
               (ordered-combination :server-timestamp
                                    (map #(db/lazy-events this % date) sts)))
-            (let [conn (connection conn-string)]
-              (let [res (cql/select conn (keyword (str (name table) "_times"))
+            (let [conn (connection conf)]
+              (let [res (cql/select conn (keyword (str (name (table conf)) "_times"))
                                     (where [[= :stream_name stream-name]
                                             [>= :server_timestamp date]])
                                     (order-by [:server_timestamp :asc])
@@ -282,8 +287,8 @@
                   []
                   (db/lazy-events-page this stream-name date first-ts))))))
         (db/lazy-events-page [this stream-name date page]
-          (let [conn (connection conn-string)]
-            (let [res (cql/select conn table
+          (let [conn (connection conf)]
+            (let [res (cql/select conn (table conf)
                                   (where [[= :stream_name stream-name]
                                           [>= :order_id page]])
                                   (order-by [:order_id :asc])
