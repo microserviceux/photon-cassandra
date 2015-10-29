@@ -107,7 +107,7 @@
       (cons (first chosen)
             (lazy-seq (ordered-combination sort-fn new-seqs))))))
 
-(db/defdbplugin DBCassandra [conf]
+(defrecord DBCassandra [conf]
   db/DB
   (db/driver-name [this] "cassandra")
   (db/fetch [this stream-name id]
