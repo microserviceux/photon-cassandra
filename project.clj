@@ -1,4 +1,4 @@
-(defproject tranchis/photon-cassandra "0.9.23"
+(defproject tranchis/photon-cassandra "0.9.25"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"

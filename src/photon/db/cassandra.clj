@@ -107,91 +107,89 @@
       (cons (first chosen)
             (lazy-seq (ordered-combination sort-fn new-seqs))))))
 
-(let [r
-      (defrecord DBCassandra [conf]
-        db/DB
-        (db/driver-name [this] "cassandra")
-        (db/fetch [this stream-name id]
-          (log/trace "Fetching " stream-name " " id)
-          (first
-            (map
-              cassandra->clj
-              (let [conn (connection conf)]
-                (cql/select conn (table conf)
+(db/defdbplugin DBCassandra [conf]
+  db/DB
+  (db/driver-name [this] "cassandra")
+  (db/fetch [this stream-name id]
+    (log/trace "Fetching " stream-name " " id)
+    (first
+      (map
+        cassandra->clj
+        (let [conn (connection conf)]
+          (cql/select conn (table conf)
+                      (where [[= :stream_name stream-name]
+                              [= :order_id (bigint id)]]))))))
+  (db/delete! [this id]
+    (let [conn (connection conf)]
+      (cql/delete conn (table conf)
+                  (where [[= :uuid id]]))))
+  (db/delete-all! [this]
+    (let [conn (connection conf)]
+      (cql/drop-table conn (table conf))
+      (cql/drop-table conn (keyword (str (name (table conf)) "_times")))
+      (cql/drop-keyspace conn (kspace conf))
+      (cql/create-keyspace conn kspace
+                           (with {:replication
+                                  {:class "SimpleStrategy"
+                                   :replication_factor 1}}))
+      (init-table conn (table conf))))
+  (db/put [this data]
+    (db/store this data))
+  (db/search [this id]
+    (map
+      cassandra->clj
+      (let [conn (connection conf)]
+        (cql/select conn (table conf) {:uuid id}))))
+  (db/store [this payload]
+    (let [conn (connection conf)]
+      (cql/insert conn (table conf) (clj->cassandra payload))
+      (cql/insert
+        conn (keyword (str (name (table conf)) "_times"))
+        {:server_timestamp (:server-timestamp payload)
+         :stream_name (:stream-name payload)
+         :order_id (:order-id payload)})))
+  (db/distinct-values [this k]
+    (let [conn (connection conf)
+          ck (get {:stream-name :stream_name
+                   :service-id :service_id
+                   :order-id :order_id
+                   :server-timestamp :server_timestamp
+                   :photon-timestamp :photon_timestamp
+                   :local-id :local_id
+                   :schema :schema_url}
+                  k k)]
+      (map :dv (cql/select conn (table conf)
+                           (columns (-> ck distinct* (as "dv")))))))
+  (db/lazy-events [this stream-name date]
+    (log/info "Retrieving events from" stream-name "from date" date)
+    (if (or (= "__all__" stream-name)
+            (= :__all__ stream-name))
+      (let [sts (db/distinct-values this :stream-name)]
+        (ordered-combination :server-timestamp
+                             (map #(db/lazy-events this % date) sts)))
+      (let [conn (connection conf)]
+        (let [res (cql/select conn (keyword (str (name (table conf)) "_times"))
+                              (where [[= :stream_name stream-name]
+                                      [>= :server_timestamp date]])
+                              (order-by [:server_timestamp :asc])
+                              (limit 1))
+              first-ts (:order_id (first res))]
+          (if (empty? res)
+            []
+            (db/lazy-events-page this stream-name date first-ts))))))
+  (db/lazy-events-page [this stream-name date page]
+    (let [conn (connection conf)]
+      (let [res (cql/select conn (table conf)
                             (where [[= :stream_name stream-name]
-                                    [= :order_id (bigint id)]]))))))
-        (db/delete! [this id]
-          (let [conn (connection conf)]
-            (cql/delete conn (table conf)
-                        (where [[= :uuid id]]))))
-        (db/delete-all! [this]
-          (let [conn (connection conf)]
-            (cql/drop-table conn (table conf))
-            (cql/drop-table conn (keyword (str (name (table conf)) "_times")))
-            (cql/drop-keyspace conn (kspace conf))
-            (cql/create-keyspace conn kspace
-                                 (with {:replication
-                                        {:class "SimpleStrategy"
-                                         :replication_factor 1}}))
-            (init-table conn (table conf))))
-        (db/put [this data]
-          (db/store this data))
-        (db/search [this id]
-          (map
-            cassandra->clj
-            (let [conn (connection conf)]
-              (cql/select conn (table conf) {:uuid id}))))
-        (db/store [this payload]
-          (let [conn (connection conf)]
-            (cql/insert conn (table conf) (clj->cassandra payload))
-            (cql/insert
-              conn (keyword (str (name (table conf)) "_times"))
-              {:server_timestamp (:server-timestamp payload)
-               :stream_name (:stream-name payload)
-               :order_id (:order-id payload)})))
-        (db/distinct-values [this k]
-          (let [conn (connection conf)
-                ck (get {:stream-name :stream_name
-                         :service-id :service_id
-                         :order-id :order_id
-                         :server-timestamp :server_timestamp
-                         :photon-timestamp :photon_timestamp
-                         :local-id :local_id
-                         :schema :schema_url}
-                        k k)]
-            (map :dv (cql/select conn (table conf)
-                                 (columns (-> ck distinct* (as "dv")))))))
-        (db/lazy-events [this stream-name date]
-          (log/info "Retrieving events from" stream-name "from date" date)
-          (if (or (= "__all__" stream-name)
-                  (= :__all__ stream-name))
-            (let [sts (db/distinct-values this :stream-name)]
-              (ordered-combination :server-timestamp
-                                   (map #(db/lazy-events this % date) sts)))
-            (let [conn (connection conf)]
-              (let [res (cql/select conn (keyword (str (name (table conf)) "_times"))
-                                    (where [[= :stream_name stream-name]
-                                            [>= :server_timestamp date]])
-                                    (order-by [:server_timestamp :asc])
-                                    (limit 1))
-                    first-ts (:order_id (first res))]
-                (if (empty? res)
-                  []
-                  (db/lazy-events-page this stream-name date first-ts))))))
-        (db/lazy-events-page [this stream-name date page]
-          (let [conn (connection conf)]
-            (let [res (cql/select conn (table conf)
-                                  (where [[= :stream_name stream-name]
-                                          [>= :order_id page]])
-                                  (order-by [:order_id :asc])
-                                  (limit chunk-size))]
-              (if (empty? res)
-                []
-                (let [last-ts (inc (:order_id (last res)))]
-                  (concat (map cassandra->clj res)
-                          (lazy-seq (db/lazy-events-page
-                                      this stream-name date last-ts)))))))))]
-  (dosync (alter db/set-records conj (db/class->record r))))
+                                    [>= :order_id page]])
+                            (order-by [:order_id :asc])
+                            (limit chunk-size))]
+        (if (empty? res)
+          []
+          (let [last-ts (inc (:order_id (last res)))]
+            (concat (map cassandra->clj res)
+                    (lazy-seq (db/lazy-events-page
+                                this stream-name date last-ts)))))))))
 
 (defn create-keyspace [c]
   (let [conn (cc/connect ["127.0.0.1"])]
