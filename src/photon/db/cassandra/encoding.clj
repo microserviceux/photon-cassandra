@@ -14,7 +14,7 @@
         bb (ByteBuffer/allocateDirect l)]
     (loop [i 0]
       (when (< i l)
-        (.put bb i (.getAt str i))
+        (.put bb i (.charAt str i))
         (recur (inc i))))))
 
 (defn decode [^Buffer b]
