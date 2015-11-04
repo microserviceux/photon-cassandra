@@ -128,7 +128,7 @@
       (cql/drop-table conn (table conf))
       (cql/drop-table conn (keyword (str (name (table conf)) "_times")))
       (cql/drop-keyspace conn (kspace conf))
-      (cql/create-keyspace conn kspace
+      (cql/create-keyspace conn (kspace conf)
                            (with {:replication
                                   {:class "SimpleStrategy"
                                    :replication_factor 1}}))
