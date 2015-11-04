@@ -3,11 +3,9 @@
             [taoensso.nippy :as nippy]
             [pjson.core :as pjson]
             [cheshire.core :as json])
-  (:import (java.nio CharBuffer Buffer ByteBuffer)
+  (:import (java.nio Buffer ByteBuffer)
            (java.io PushbackReader)
            (java.util Arrays)))
-
-(defn buffer->string [^CharBuffer cb] (.toString cb))
 
 (defn encode [^String str]
   (let [l (.length str)
@@ -72,17 +70,23 @@
 (defn clj-decode-nippy [data]
   (nippy/thaw (.array data)))
 
+(defn clj-encode-pjson [item]
+  (encode (pjson/write-str item)))
+(defn clj-decode-pjson [data]
+  (let [item (decode data)]
+    (pjson/read-str item)))
+
 (defn clj-encode-edn [item]
   (encode (pr-str item)))
 (defn clj-decode-edn [data]
   (let [item (decode data)]
-    (read-string (buffer->string item))))
+    (read-string item)))
 
 (defn clj-encode-json [item]
   (encode (json/generate-string item)))
 (defn clj-decode-json [data]
   (let [item (decode data)]
-    (json/parse-string (buffer->string item) true)))
+    (json/parse-string item true)))
 
 (defn remaining [^Buffer b] (.remaining b))
 
