@@ -1,39 +1,24 @@
 (ns photon.db.cassandra.encoding
   (:require [clojure.java.io :as io]
             [taoensso.nippy :as nippy]
+            [pjson.core :as pjson]
             [cheshire.core :as json])
-  (:import (java.nio.charset Charset CharsetEncoder CharsetDecoder)
-           (java.nio CharBuffer Buffer ByteBuffer)
+  (:import (java.nio CharBuffer Buffer ByteBuffer)
            (java.io PushbackReader)
            (java.util Arrays)))
 
-;; This is what happens when things are NOT thread-safe -.-
-(def charset (Charset/forName "UTF-8"))
-(def encoders (ref {}))
-(def decoders (ref {}))
-(defn new-encoder [^Charset charset] (.newEncoder charset))
-(defn new-decoder [^Charset charset] (.newDecoder charset))
-(defn m-encoder [^Thread t]
-  (if (contains? @encoders t)
-    (get @encoders t)
-    (let [e (new-encoder charset) ]
-      (dosync (alter encoders assoc t e))
-      e)))
-(defn m-decoder [^Thread t]
-  (if (contains? @decoders t)
-    (get @decoders t)
-    (let [e (new-decoder charset)]
-      (dosync (alter decoders assoc t e))
-      e)))
-(def encoder (memoize m-encoder))
-(def decoder (memoize m-decoder))
-
-(defn decode [^CharsetDecoder d ^Buffer b]
-  (.decode d b))
 (defn buffer->string [^CharBuffer cb] (.toString cb))
 
-(defn encode [^CharsetEncoder e ^String s]
-  (.encode e (CharBuffer/wrap s)))
+(defn encode [^String str]
+  (let [l (.length str)
+        bb (ByteBuffer/allocateDirect l)]
+    (loop [i 0]
+      (when (< i l)
+        (.put bb i (.getAt str i))
+        (recur (inc i))))))
+
+(defn decode [^Buffer b]
+  (String. (.array b) 0))
 
 (defn byte-output-stream [v i bb]
   (proxy [java.io.OutputStream] []
@@ -88,19 +73,15 @@
   (nippy/thaw (.array data)))
 
 (defn clj-encode-edn [item]
-  (encode (encoder (Thread/currentThread))
-          (pr-str item)))
+  (encode (pr-str item)))
 (defn clj-decode-edn [data]
-  (let [d (decoder (Thread/currentThread))
-        item (decode d data)]
+  (let [item (decode data)]
     (read-string (buffer->string item))))
 
 (defn clj-encode-json [item]
-  (encode (encoder (Thread/currentThread))
-          (json/generate-string item)))
+  (encode (json/generate-string item)))
 (defn clj-decode-json [data]
-  (let [d (decoder (Thread/currentThread))
-        item (decode d data)]
+  (let [item (decode data)]
     (json/parse-string (buffer->string item) true)))
 
 (defn remaining [^Buffer b] (.remaining b))
