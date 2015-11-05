@@ -61,8 +61,8 @@
           conn))
       ref-conn)))
 
-(def ^:dynamic clj-encode enc/clj-encode-pjson)
-(def ^:dynamic clj-decode enc/clj-decode-pjson)
+(def ^:dynamic clj-encode enc/clj-encode-smile)
+(def ^:dynamic clj-decode enc/clj-decode-smile)
 
 (defn position [^Buffer b] (.position b))
 (defn set-position! [^Buffer b ^Integer i] (.position b i))
