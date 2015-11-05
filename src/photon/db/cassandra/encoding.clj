@@ -4,19 +4,17 @@
             [pjson.core :as pjson]
             [cheshire.core :as json])
   (:import (java.nio Buffer ByteBuffer)
+           (java.nio.charset Charset)
            (java.io PushbackReader)
            (java.util Arrays)))
 
+(def charset (Charset/forName "ISO-8859-1"))
+
 (defn encode [^String str]
-  (let [l (.length str)
-        bb (ByteBuffer/allocateDirect l)]
-    (loop [i 0]
-      (when (< i l)
-        (.put bb i (byte (.charAt str i)))
-        (recur (inc i))))))
+  (ByteBuffer/wrap (.getBytes str charset)))
 
 (defn decode [^Buffer b]
-  (String. (.array b) 0))
+  (String. (.array b) charset))
 
 (defn byte-output-stream [v i bb]
   (proxy [java.io.OutputStream] []
