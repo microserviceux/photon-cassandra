@@ -24,6 +24,7 @@
                                            :edn clj-encode-edn
                                            :edn-stream clj-encode-edn-stream
                                            :nippy clj-encode-nippy
+                                           :pjson clj-encode-pjson
                                            :stream clj-encode-json-stream
                                            :smile clj-encode-smile}
                                           enc)]
@@ -34,6 +35,7 @@
   (println "Reading all...")
   (binding [clj-decode (get {:json clj-decode-json
                              :nippy clj-decode-nippy
+                             :pjson clj-decode-pjson
                              :stream clj-decode-json-stream
                              :edn clj-decode-edn
                              :edn-stream clj-decode-edn-stream
@@ -46,6 +48,7 @@
   (delete-all! db)
   (send-events! db 10000 :simple :stream)
   (send-events! db 10000 :simple :nippy)
+  (send-events! db 10000 :simple :pjson)
   (send-events! db 10000 :simple :edn)
   (send-events! db 10000 :simple :edn-stream)
   (send-events! db 10000 :simple :json)
@@ -74,7 +77,7 @@
     (warmup! db)
     (let [nums [1 5 10 50 100 500 1000 5000 10000 50000 100000 500000]
           complexities [:simple :easy :medium :hard :complex]
-          codecs [:nippy :stream :edn :json :smile :edn-stream]
+          codecs [:pjson :nippy :stream :edn :json :smile :edn-stream]
           combs (combo/cartesian-product nums complexities codecs)
           results (mapcat #(apply test-writes! db %) combs)]
       (spit "/tmp/results.benchmark" "" :append false)
