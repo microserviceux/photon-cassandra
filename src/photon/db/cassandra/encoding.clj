@@ -72,7 +72,9 @@
   (encode (pjson/write-str item)))
 (defn clj-decode-pjson [data]
   (let [item (decode data)]
-    (pjson/read-str item)))
+    (if (= "{}" item)
+     {}
+     (pjson/read-str item))))
 
 (defn clj-encode-edn [item]
   (encode (pr-str item)))
