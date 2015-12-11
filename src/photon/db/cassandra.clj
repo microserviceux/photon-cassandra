@@ -101,7 +101,8 @@
   [sort-fn seqs]
   (if (every? empty? seqs)
     '()
-    (let [sorted (sort-by #(sort-fn (first %)) seqs)
+    (let [valid-seqs (remove #(nil? (first %)) seqs)
+          sorted (sort-by #(sort-fn (first %)) valid-seqs)
           chosen (first sorted)
           new-seqs (cons (rest chosen) (rest sorted))]
       (cons (first chosen)
