@@ -16,7 +16,7 @@
     (println "Starting writes")
     (dorun
       (pmap (fn [_]
-              (let [m {:server-timestamp (System/currentTimeMillis)
+              (let [m {:event-time (System/currentTimeMillis)
                        :order-id (System/nanoTime)
                        :stream-name "test"
                        :payload rm}]

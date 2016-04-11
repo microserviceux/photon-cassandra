@@ -23,30 +23,20 @@
   (get conf :table "events"))
 
 (def schema
-  {:service_id       :varchar
-   :local_id         :varchar
-   :provenance       (map-type :varchar :varchar)
-   :encoding         :varchar
-   :server_timestamp :bigint
-   :schema_url       :varchar
-   :stream_name      :varchar
-   :photon_timestamp :bigint
-   :order_id         :bigint
-   :payload          :blob
+  {:order_id           :bigint
+   :event_time         :bigint
+   :stream_name        :varchar
+   :event_type         :varchar
+   :caused_by          :varchar
+   :caused_by_relation :varchar
+   :payload            :blob
+   :service_id         :varchar
+   :schema_url         :varchar
    :primary-key      [:stream_name :order_id]})
-
-(def schema-times
-  {:server_timestamp :bigint
-   :stream_name      :varchar
-   :order_id         :bigint
-   :primary-key      [:stream_name :server_timestamp :order_id]})
 
 (defn init-table [conn table]
   (cql/create-table conn table (column-definitions schema))
-  (cql/create-table conn (keyword (str (name table) "_times"))
-                    (column-definitions schema-times))
-  (cql/create-index conn table :service_id)
-  (cql/create-index conn table :local_id))
+  (cql/create-index conn table :service_id))
 
 (defn connection [conf]
   (let [ip (conn-string conf)
@@ -69,24 +59,24 @@
 
 (defn clj->cassandra [cl]
   (let [rm (rename-keys cl {:stream-name :stream_name
+                            :event-type :event_type
+                            :caused-by :caused_by
+                            :caused-by-relation :caused_by_relation
                             :service-id :service_id
                             :order-id :order_id
-                            :server-timestamp :server_timestamp
-                            :photon-timestamp :photon_timestamp
-                            :local-id :local_id
+                            :event-time :event_time
                             :schema :schema_url})]
-    (assoc
-     (assoc rm :payload (clj-encode (:payload cl)))
-     :server_timestamp (long-value (biginteger (:server_timestamp rm))))))
+    (assoc rm :payload (clj-encode (:payload cl)))))
 
 (defn cassandra->clj [cass]
   (log/trace (pr-str cass))
   (let [rm (rename-keys cass {:stream_name :stream-name
+                              :event_type :event-type
+                              :caused_by :caused-by
+                              :caused_by_relation :caused-by-relation
                               :service_id :service-id
-                              :photon_timestamp :photon-timestamp
+                              :event_time :event-time
                               :order_id :order-id
-                              :server_timestamp :server-timestamp
-                              :local_id :local-id
                               :schema_url :schema})
         p (:payload cass)]
     (if (nil? p)
@@ -127,7 +117,6 @@
   (db/delete-all! [this]
     (let [conn (connection conf)]
       (cql/drop-table conn (table conf))
-      (cql/drop-table conn (keyword (str (name (table conf)) "_times")))
       (cql/drop-keyspace conn (kspace conf))
       (cql/create-keyspace conn (kspace conf)
                            (with {:replication
@@ -143,20 +132,16 @@
         (cql/select conn (table conf) {:uuid id}))))
   (db/store [this payload]
     (let [conn (connection conf)]
-      (cql/insert conn (table conf) (clj->cassandra payload))
-      (cql/insert
-        conn (keyword (str (name (table conf)) "_times"))
-        {:server_timestamp (:server-timestamp payload)
-         :stream_name (:stream-name payload)
-         :order_id (:order-id payload)})))
+      (cql/insert conn (table conf) (clj->cassandra payload))))
   (db/distinct-values [this k]
     (let [conn (connection conf)
           ck (get {:stream-name :stream_name
+                   :event-type :event_type
+                   :caused-by :caused_by
+                   :caused-by-relation :caused_by_relation
                    :service-id :service_id
                    :order-id :order_id
-                   :server-timestamp :server_timestamp
-                   :photon-timestamp :photon_timestamp
-                   :local-id :local_id
+                   :event-time :event_time
                    :schema :schema_url}
                   k k)]
       (map :dv (cql/select conn (table conf)
@@ -166,13 +151,14 @@
     (if (or (= "__all__" stream-name)
             (= :__all__ stream-name))
       (let [sts (db/distinct-values this :stream-name)]
-        (ordered-combination :server-timestamp
+        (ordered-combination :order-id
                              (map #(db/lazy-events this % date) sts)))
       (let [conn (connection conf)]
-        (let [res (cql/select conn (keyword (str (name (table conf)) "_times"))
+        (let [date-mms (* 1000 date)
+              res (cql/select conn (table conf)
                               (where [[= :stream_name stream-name]
-                                      [>= :server_timestamp date]])
-                              (order-by [:server_timestamp :asc])
+                                      [>= :order_id date-mms]])
+                              (order-by [:order_id :asc])
                               (limit 1))
               first-ts (:order_id (first res))]
           (if (empty? res)

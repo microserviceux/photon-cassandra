@@ -32,5 +32,7 @@
                  [com.taoensso/nippy "2.11.1"
                   :exclusions [org.clojure/tools.reader]]
                  [dire "0.5.4"]
-                 [org.clojure/tools.logging "0.3.1"]])
+                 [midje "1.8.3"]
+                 [org.clojure/tools.logging "0.3.1"]]
+  :plugins [[lein-midje "3.2"]])
 
