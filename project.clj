@@ -23,10 +23,10 @@
              "-XX:CMSIncrementalSafetyFactor=10"
              "-XX:+CMSClassUnloadingEnabled" "-XX:+DoEscapeAnalysis"]
   :dependencies [[org.clojure/clojure "1.7.0"]
-                 [tranchis/photon-db "0.9.31"]
+                 [tranchis/photon-db "0.9.45"]
                  [tranchis/cassaforte "2.1.0-beta3"]
                  [org.clojure/math.combinatorics "0.1.1"]
-                 [cheshire "5.5.0"]
+                 [cheshire "5.6.1"]
                  [pjson "0.3.2"]
                  [org.clojure/tools.reader "0.10.0"]
                  [com.taoensso/nippy "2.11.1"
