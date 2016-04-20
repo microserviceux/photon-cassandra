@@ -10,8 +10,6 @@
   (:import (java.nio Buffer)
            (java.math BigInteger)))
 
-(def chunk-size 100)
-
 (defn long-value [^BigInteger bi] (.longValue bi))
 
 (def cassandra-instances (ref {}))
@@ -21,6 +19,8 @@
   (get conf :kspace "photon"))
 (defn table [conf]
   (get conf :table "events"))
+(defn chunk-size [conf]
+  (get conf :cassandra.buffer 100))
 
 (def schema
   {:order_id           :bigint
@@ -32,7 +32,7 @@
    :payload            :blob
    :service_id         :varchar
    :schema_url         :varchar
-   :primary-key      [:stream_name :order_id]})
+   :primary-key        [:stream_name :order_id]})
 
 (defn init-table [conn table]
   (cql/create-table conn table (column-definitions schema))
@@ -170,7 +170,7 @@
                             (where [[= :stream_name stream-name]
                                     [>= :order_id page]])
                             (order-by [:order_id :asc])
-                            (limit chunk-size))]
+                            (limit (chunk-size conf)))]
         (if (empty? res)
           []
           (let [last-ts (inc (:order_id (last res)))]
