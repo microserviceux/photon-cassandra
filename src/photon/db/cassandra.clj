@@ -114,7 +114,7 @@
     (let [conn (connection conf)]
       (cql/delete conn (table conf)
                   (where [[= :stream_name (:stream-name ev)]
-                          [= :order_id (:order-id ev)]]))))
+                          [= :order_id (bigint (:order-id ev))]]))))
   (db/delete-all! [this]
     (let [conn (connection conf)]
       (cql/drop-table conn (table conf))
