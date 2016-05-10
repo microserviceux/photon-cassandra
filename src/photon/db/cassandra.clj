@@ -113,7 +113,7 @@
   (db/delete! [this id]
     (let [conn (connection conf)]
       (cql/delete conn (table conf)
-                  (where [[= :uuid id]]))))
+                  (where [[= :order_id id]]))))
   (db/delete-all! [this]
     (let [conn (connection conf)]
       (cql/drop-table conn (table conf))
@@ -129,7 +129,7 @@
     (map
       cassandra->clj
       (let [conn (connection conf)]
-        (cql/select conn (table conf) {:uuid id}))))
+        (cql/select conn (table conf) {:order_id id}))))
   (db/store [this payload]
     (let [conn (connection conf)]
       (cql/insert conn (table conf) (clj->cassandra payload))))
