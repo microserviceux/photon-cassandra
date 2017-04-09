@@ -2,7 +2,6 @@
   (:require [clojure.tools.logging :as log]
             [photon.db.cassandra.encoding :as enc]
             [photon.db :as db]
-            [clojure.set :refer [rename-keys]]
             [clojurewerkz.cassaforte.client :as cc]
             [clojurewerkz.cassaforte.cql :as cql]
             [dire.core :refer [with-handler!]])
@@ -57,6 +56,24 @@
 (defn position [^Buffer b] (.position b))
 (defn set-position! [^Buffer b ^Integer i] (.position b i))
 
+(defn rename-keys
+  [map kmap]
+  (reduce
+   (fn [m [old new]]
+     (if (contains? map old)
+       (assoc m new (get map old))
+       m))
+   (apply dissoc map (keys kmap)) kmap))
+
+(defn rename-keys-no-nils
+  [map kmap]
+  (reduce
+   (fn [m [old new]]
+     (if (and (contains? map old) (not (nil? (get map old))))
+       (assoc m new (get map old))
+       m))
+   (apply dissoc map (keys kmap)) kmap))
+
 (defn clj->cassandra [cl]
   (let [rm (rename-keys cl {:stream-name :stream_name
                             :event-type :event_type
@@ -69,15 +86,14 @@
     (assoc rm :payload (clj-encode (:payload cl)))))
 
 (defn cassandra->clj [cass]
-  (log/trace (pr-str cass))
-  (let [rm (rename-keys cass {:stream_name :stream-name
-                              :event_type :event-type
-                              :caused_by :caused-by
-                              :caused_by_relation :caused-by-relation
-                              :service_id :service-id
-                              :event_time :event-time
-                              :order_id :order-id
-                              :schema_url :schema})
+  (let [rm (rename-keys-no-nils cass {:stream_name :stream-name
+                                      :event_type :event-type
+                                      :caused_by :caused-by
+                                      :caused_by_relation :caused-by-relation
+                                      :service_id :service-id
+                                      :event_time :event-time
+                                      :order_id :order-id
+                                      :schema_url :schema})
         p (:payload cass)]
     (if (nil? p)
       {}
@@ -98,23 +114,37 @@
       (cons (first chosen)
             (lazy-seq (ordered-combination sort-fn new-seqs))))))
 
+(defn lazy-events-page [this stream-name date page]
+  (let [conn (connection (:conf this))]
+    (let [res (cql/select conn (table (:conf this))
+                          (where [[= :stream_name stream-name]
+                                  [>= :order_id page]])
+                          (order-by [:order_id :asc])
+                          (limit (chunk-size (:conf this))))]
+      (if (empty? res)
+        []
+        (let [last-ts (inc (:order_id (last res)))]
+          (concat (map cassandra->clj res)
+                  (lazy-seq (lazy-events-page
+                             this stream-name date last-ts))))))))
+
 (defrecord DBCassandra [conf]
   db/DB
   (db/driver-name [this] "cassandra")
   (db/fetch [this stream-name id]
     (log/trace "Fetching " stream-name " " id)
     (first
-      (map
-        cassandra->clj
-        (let [conn (connection conf)]
-          (cql/select conn (table conf)
-                      (where [[= :stream_name stream-name]
-                              [= :order_id (bigint id)]]))))))
-  (db/delete! [this ev]
+     (map
+      cassandra->clj
+      (let [conn (connection conf)]
+        (cql/select conn (table conf)
+                    (where [[= :stream_name stream-name]
+                            [= :order_id (bigint id)]]))))))
+  (db/delete! [this stream-name order-id]
     (let [conn (connection conf)]
       (cql/delete conn (table conf)
-                  (where [[= :stream_name (:stream-name ev)]
-                          [= :order_id (bigint (:order-id ev))]]))))
+                  (where [[= :stream_name stream-name]
+                          [= :order_id (bigint order-id)]]))))
   (db/delete-all! [this]
     (let [conn (connection conf)]
       (cql/drop-table conn (table conf))
@@ -124,13 +154,13 @@
                                   {:class "SimpleStrategy"
                                    :replication_factor 1}}))
       (init-table conn (table conf))))
-  (db/put [this data]
-    (db/store this data))
   (db/search [this id]
     (map
-      cassandra->clj
-      (let [conn (connection conf)]
-        (cql/select conn (table conf) {:order_id id}))))
+     cassandra->clj
+     (let [conn (connection conf)]
+       (cql/select conn (table conf)
+                   (where [[= :order_id (bigint id)]])
+                   (allow-filtering)))))
   (db/store [this payload]
     (let [conn (connection conf)]
       (cql/insert conn (table conf) (clj->cassandra payload))))
@@ -145,39 +175,37 @@
                    :event-time :event_time
                    :schema :schema_url}
                   k k)]
-      (map :dv (cql/select conn (table conf)
-                           (columns (-> ck distinct* (as "dv")))))))
+      (try
+        (into #{} (map :dv (cql/select conn (table conf)
+                                       (columns (-> ck distinct* (as "dv"))))))
+        (catch com.datastax.driver.core.exceptions.InvalidQueryException e
+          (log/warn "Querying by" k "with photon-cassandra is not performant")
+          (into #{} (distinct (map ck (cql/select conn (table conf)))))))))
   (db/lazy-events [this stream-name date]
     (log/info "Retrieving events from" stream-name "from date" date)
     (if (or (= "__all__" stream-name)
-            (= :__all__ stream-name))
+            (= :__all__ stream-name)
+            (= "**" stream-name))
       (let [sts (db/distinct-values this :stream-name)]
         (ordered-combination :order-id
                              (map #(db/lazy-events this % date) sts)))
-      (let [conn (connection conf)]
-        (let [date-mms (* 1000 date)
-              res (cql/select conn (table conf)
-                              (where [[= :stream_name stream-name]
-                                      [>= :order_id date-mms]])
-                              (order-by [:order_id :asc])
-                              (limit 1))
-              first-ts (:order_id (first res))]
-          (if (empty? res)
-            []
-            (db/lazy-events-page this stream-name date first-ts))))))
-  (db/lazy-events-page [this stream-name date page]
-    (let [conn (connection conf)]
-      (let [res (cql/select conn (table conf)
-                            (where [[= :stream_name stream-name]
-                                    [>= :order_id page]])
-                            (order-by [:order_id :asc])
-                            (limit (chunk-size conf)))]
-        (if (empty? res)
-          []
-          (let [last-ts (inc (:order_id (last res)))]
-            (concat (map cassandra->clj res)
-                    (lazy-seq (db/lazy-events-page
-                                this stream-name date last-ts)))))))))
+      (if (.contains stream-name "**")
+        (let [regex (re-pattern
+                     (clojure.string/replace stream-name #"\*\*" "\\S*"))
+              sts (filter #(re-find regex %)
+                          (db/distinct-values this :stream-name))]
+          (ordered-combination :order-id
+                               (map #(db/lazy-events this % date) sts)))
+        (let [conn (connection conf)]
+          (let [res (cql/select conn (table conf)
+                                (where [[= :stream_name stream-name]
+                                        [>= :order_id date]])
+                                (order-by [:order_id :asc])
+                                (limit 1))
+                first-ts (:order_id (first res))]
+            (if (empty? res)
+              []
+              (lazy-events-page this stream-name date first-ts))))))))
 
 (defn create-keyspace [c]
   (let [conn (cc/connect ["127.0.0.1"])]

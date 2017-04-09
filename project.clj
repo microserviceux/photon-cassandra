@@ -1,8 +1,8 @@
-(defproject tranchis/photon-cassandra "0.9.49"
-  :description "FIXME: write description"
-  :url "http://example.com/FIXME"
-  :license {:name "Eclipse Public License"
-            :url "http://www.eclipse.org/legal/epl-v10.html"}
+(defproject tranchis/photon-cassandra "0.10.4"
+  :description "Cassandra (<= 2.1) plugin for photon"
+  :url "https://github.com/microserviceux/photon-cassandra"
+  :license {:name "GNU Affero General Public License Version 3"
+            :url "https://www.gnu.org/licenses/agpl-3.0.html"}
   #_#_:global-vars {*warn-on-reflection* true}
   :aot :all
   :main photon.db.cassandra.benchmark
@@ -22,17 +22,18 @@
              "-XX:CMSInitiatingOccupancyFraction=90"
              "-XX:CMSIncrementalSafetyFactor=10"
              "-XX:+CMSClassUnloadingEnabled" "-XX:+DoEscapeAnalysis"]
-  :dependencies [[org.clojure/clojure "1.7.0"]
-                 [tranchis/photon-db "0.9.45"]
-                 [tranchis/cassaforte "2.1.0-beta3"]
-                 [org.clojure/math.combinatorics "0.1.1"]
-                 [cheshire "5.6.1"]
-                 [pjson "0.3.2"]
+  :dependencies [[org.clojure/clojure "1.8.0"]
+                 [tranchis/photon-db "0.10.4"]
+                 [clojurewerkz/cassaforte "3.0.0-RC1"]
+                 [org.apache.commons/commons-lang3 "3.5"]
+                 [cc.qbits/hayt "4.0.0-beta7"]
+                 [org.clojure/math.combinatorics "0.1.4"]
+                 [cheshire "5.7.0"]
+                 [pjson "0.3.8"]
                  [org.clojure/tools.reader "0.10.0"]
-                 [com.taoensso/nippy "2.11.1"
+                 [com.taoensso/nippy "2.13.0"
                   :exclusions [org.clojure/tools.reader]]
                  [dire "0.5.4"]
                  [midje "1.8.3"]
                  [org.clojure/tools.logging "0.3.1"]]
   :plugins [[lein-midje "3.2"]])
-
