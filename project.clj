@@ -25,15 +25,13 @@
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [tranchis/photon-db "0.10.4"]
                  [clojurewerkz/cassaforte "3.0.0-RC1"]
-                 [org.apache.commons/commons-lang3 "3.5"]
-                 [cc.qbits/hayt "4.0.0-beta7"]
                  [org.clojure/math.combinatorics "0.1.4"]
                  [cheshire "5.7.0"]
                  [pjson "0.3.8"]
                  [org.clojure/tools.reader "0.10.0"]
-                 [com.taoensso/nippy "2.13.0"
-                  :exclusions [org.clojure/tools.reader]]
-                 [dire "0.5.4"]
+                 [com.taoensso/nippy "2.13.0"]
+                 [dire "0.5.4" :exclusions [slingshot]]
+                 [org.clojure/tools.reader "1.0.0-beta4"]
                  [midje "1.8.3"]
                  [org.clojure/tools.logging "0.3.1"]]
   :plugins [[lein-midje "3.2"]])

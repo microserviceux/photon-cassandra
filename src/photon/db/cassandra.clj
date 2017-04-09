@@ -207,20 +207,20 @@
               []
               (lazy-events-page this stream-name date first-ts))))))))
 
-(defn create-keyspace [c]
+(defn local-create-keyspace [c]
   (let [conn (cc/connect ["127.0.0.1"])]
     (cql/create-keyspace conn "cassaforte_keyspace"
                          (with {:replication
                                 {:class "SimpleStrategy"
                                  :replication_factor 1}}))))
 
-(defn drop-keyspace []
+(defn local-drop-keyspace []
   (let [conn (cc/connect ["127.0.0.1"])]
     (cql/drop-keyspace conn "cassaforte_keyspace")))
 
 (defn test-cassandra []
-  (drop-keyspace)
-  (create-keyspace)
+  (local-drop-keyspace)
+  (local-create-keyspace)
   (let [conn (cc/connect ["127.0.0.1"])]
     (cql/use-keyspace conn "cassaforte_keyspace")
     (log/trace "Creating table...")
