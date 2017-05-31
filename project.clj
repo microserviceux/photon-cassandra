@@ -1,4 +1,4 @@
-(defproject tranchis/photon-cassandra "0.10.5"
+(defproject tranchis/photon-cassandra "0.10.8"
   :description "Cassandra (<= 2.1) plugin for photon"
   :url "https://github.com/microserviceux/photon-cassandra"
   :license {:name "GNU Affero General Public License Version 3"
@@ -23,10 +23,10 @@
              "-XX:CMSIncrementalSafetyFactor=10"
              "-XX:+CMSClassUnloadingEnabled" "-XX:+DoEscapeAnalysis"]
   :dependencies [[org.clojure/clojure "1.8.0"]
-                 [tranchis/photon-db "0.10.4"]
+                 [tranchis/photon-db "0.10.8"]
                  [tranchis/cassaforte "2.1.0-beta3"]
                  [org.clojure/math.combinatorics "0.1.4"]
-                 [cheshire "5.7.0"]
+                 [cheshire "5.7.1"]
                  [pjson "0.3.8"]
                  [org.clojure/tools.reader "0.10.0"]
                  [com.taoensso/nippy "2.13.0"]
